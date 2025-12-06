@@ -215,8 +215,6 @@ Toggle "Active" en haut à droite
 Chatbot_gestion_restaurant/
 │
 ├── 📄 README.md                        # ⭐ Ce fichier
-├── 📄 PRODUCTION_READY.md              # Checklist production
-├── 📄 RECAP_FINAL.md                   # Récapitulatif complet
 │
 ├── 📂 apps/                            # Backend Django
 │   ├── core/          # Modèles communs
@@ -231,9 +229,7 @@ Chatbot_gestion_restaurant/
 │   └── wsgi.py
 │
 ├── 📂 n8n_workflows/                   # Workflows n8n
-│   ├── GUIDE_COMPLET.md               # ⭐ Guide exhaustif
-│   ├── README.md
-│   └── Restaurant Bot - Version Optimisée v3.json  # ⭐ Workflow
+│   └── Restaurant Bot - Version Optimisée v3.json  # ⭐ 
 │
 ├── 📂 scripts/                         # Scripts utilitaires
 │   ├── manage.bat                     # ⭐ Gestionnaire (Windows)
@@ -341,13 +337,6 @@ python manage.py shell
 
 ## 📚 Documentation Complète
 
-### Guides Principaux
-
-| Document | Description |
-|----------|-------------|
-| **[GUIDE_COMPLET.md](n8n_workflows/GUIDE_COMPLET.md)** | ⭐ Guide exhaustif (24KB) - Tout de A à Z |
-| **[PRODUCTION_READY.md](PRODUCTION_READY.md)** | Checklist de mise en production |
-| **[RECAP_FINAL.md](RECAP_FINAL.md)** | Récapitulatif du projet complet |
 
 ### Documentation Spécifique
 
@@ -444,20 +433,6 @@ scripts\manage.bat
 docker-compose restart n8n
 ```
 
-**Plus de solutions:** Voir [GUIDE_COMPLET.md](n8n_workflows/GUIDE_COMPLET.md) section "Dépannage"
-
----
-
-## 📈 Performances
-
-### Optimisations v3
-
-| Métrique | v1 | v3 | Amélioration |
-|----------|----|----|--------------|
-| Appels API auth | 1/message | 1/~20 messages | ~95% |
-| Boutons cliquables | ❌ | ✅ | +100% |
-| Messages menu | 1 gros | 1 par plat | Plus lisible |
-| Cache tokens | ❌ | ✅ 24h | Nouveau |
 
 ---
 
@@ -472,8 +447,6 @@ docker-compose restart n8n
 - [ ] Backups automatiques configurés
 - [ ] Tous les tests passés
 - [ ] Documentation à jour
-
-**Guide complet:** [PRODUCTION_READY.md](PRODUCTION_READY.md)
 
 ---
 
@@ -490,10 +463,6 @@ docker-compose restart n8n
 
 ## 📞 Support & Ressources
 
-### Documentation
-- 📚 [GUIDE_COMPLET.md](n8n_workflows/GUIDE_COMPLET.md) - Guide principal exhaustif
-- 🏭 [PRODUCTION_READY.md](PRODUCTION_READY.md) - Mise en production
-- 📝 [RECAP_FINAL.md](RECAP_FINAL.md) - Récapitulatif projet
 
 ### Liens Externes
 - [Documentation Django](https://docs.djangoproject.com/)
@@ -541,7 +510,6 @@ Merci à tous ceux qui ont contribué à ce projet!
 
 ### v3.0 (2024-12-06) - ACTUEL
 - ✅ Réorganisation complète du workflow
-- ✅ Interface 100% française
 - ✅ Système de portefeuille complet
 - ✅ Paiement de commandes
 - ✅ Rechargement fictif
@@ -561,7 +529,5 @@ Merci à tous ceux qui ont contribué à ce projet!
 **Version:** 3.0
 **Date:** 2024-12-06
 **Statut:** ✅ **Production Ready**
-
-**Pour démarrer:** Lire [GUIDE_COMPLET.md](n8n_workflows/GUIDE_COMPLET.md) 🚀
 
 ---

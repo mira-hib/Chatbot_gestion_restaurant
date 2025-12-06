@@ -14,7 +14,6 @@ from .serializers import (
     RechargeRequestSerializer,
     PayOrderSerializer
 )
-from .wave_service import WaveService
 from apps.orders.models import Order
 from apps.core.exceptions import InsufficientBalanceException
 from typing import Any
@@ -41,68 +40,10 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
-    def recharge(self, request) -> Response:
-        """
-        Initiate wallet recharge via Wave.
-        """
-        serializer = RechargeRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        amount = serializer.validated_data['amount']
-        phone_number = serializer.validated_data.get(
-            'phone_number',
-            request.user.phone_number
-        )
-
-        # Get or create wallet
-        wallet, created = Wallet.objects.get_or_create(user=request.user)
-
-        # Create pending transaction
-        txn = Transaction.objects.create(
-            wallet=wallet,
-            type=Transaction.Type.CREDIT,
-            amount=amount,
-            status=Transaction.Status.PENDING,
-            description=f"Recharge de {amount} FCFA via Wave"
-        )
-
-        # Initiate Wave payment
-        try:
-            wave_service = WaveService()
-            wave_response = wave_service.initiate_payment(
-                amount=amount,
-                phone_number=phone_number,
-                transaction_id=txn.transaction_id
-            )
-
-            # Update transaction with Wave details
-            txn.wave_transaction_id = wave_response.get('wave_transaction_id')
-            txn.wave_payment_url = wave_response.get('payment_url')
-            txn.metadata = wave_response
-            txn.save()
-
-            return Response(
-                {
-                    'message': 'Paiement initié avec succès',
-                    'transaction': TransactionSerializer(txn).data,
-                    'payment_url': txn.wave_payment_url,
-                },
-                status=status.HTTP_201_CREATED
-            )
-
-        except Exception as e:
-            txn.status = Transaction.Status.FAILED
-            txn.save()
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    @action(detail=False, methods=['post'])
     def recharge_fictif(self, request) -> Response:
         """
         Rechargement fictif du portefeuille (pour tests/démo).
-        Crédite directement le wallet sans passer par Wave.
+        Crédite directement le wallet .
         """
         serializer = RechargeRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

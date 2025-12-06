@@ -13,10 +13,7 @@
 ├── 🚀 setup_initial_data.py             # Create test data
 │
 ├── 📚 README.md                         # Main documentation
-├── 📚 API_ENDPOINTS.md                  # API endpoints reference
-├── 📚 WAVE_INTEGRATION.md               # Wave API integration guide
-├── 📚 N8N_INTEGRATION.md                # n8n workflow guide
-├── 📚 PROJECT_SUMMARY.md                # Project overview
+referenrence
 ├── 📚 STRUCTURE.txt                     # This file
 │
 ├── 📁 config/                           # Django project configuration
@@ -123,10 +120,7 @@
 ✅ Interface admin complète
 ✅ Documentation API (Swagger + ReDoc)
 ✅ CORS pour n8n
-✅ Structure Wave API prête
-✅ Code 100% typé
-✅ Orienté objet
-✅ Fichiers < 250 lignes
+
 
 
 ═══════════════════════════════════════════════════════════════
@@ -223,13 +217,11 @@ Tests:            pytest
 📱 INTÉGRATION
 ═══════════════════════════════════════════════════════════════
 
-n8n:    Voir N8N_INTEGRATION.md
-Wave:   Voir WAVE_INTEGRATION.md
-API:    Voir API_ENDPOINTS.md
+n8n:    Voir README.md
+API:    Voir README.md
 
 
 ═══════════════════════════════════════════════════════════════
-
 Projet créé avec ❤️ pour la démo d'entretien
 Python 3.10+ | Django 5.0 | DRF 3.14
 
