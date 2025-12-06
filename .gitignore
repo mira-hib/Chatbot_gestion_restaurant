@@ -63,6 +63,5 @@ RECAP_FINAL.md
 SCRIPTS_SHELL.md
 PRODUCTION_READY.md
 NETTOYAGE_COMPLET.md
-docker-entrypoint.sh
 .env.docker
 workfow_guide_inutile/
