@@ -1,0 +1,236 @@
+📁 Chatbot_gestion_restaurant/
+│
+├── 📄 manage.py                          # Django management script
+├── 📄 requirements.txt                   # Python dependencies
+├── 📄 setup.py                          # Package setup
+├── 📄 pytest.ini                        # Pytest configuration
+├── 📄 mypy.ini                          # MyPy type checking config
+├── 📄 .env.example                      # Environment variables template
+├── 📄 .gitignore                        # Git ignore rules
+│
+├── 🚀 quick_start.bat                   # Windows quick setup
+├── 🚀 quick_start.sh                    # Linux/Mac quick setup
+├── 🚀 setup_initial_data.py             # Create test data
+│
+├── 📚 README.md                         # Main documentation
+├── 📚 API_ENDPOINTS.md                  # API endpoints reference
+├── 📚 WAVE_INTEGRATION.md               # Wave API integration guide
+├── 📚 N8N_INTEGRATION.md                # n8n workflow guide
+├── 📚 PROJECT_SUMMARY.md                # Project overview
+├── 📚 STRUCTURE.txt                     # This file
+│
+├── 📁 config/                           # Django project configuration
+│   ├── __init__.py
+│   ├── settings.py                      # Main settings
+│   ├── urls.py                          # Root URL configuration
+│   ├── wsgi.py                          # WSGI entry point
+│   └── asgi.py                          # ASGI entry point
+│
+└── 📁 apps/                             # Django applications
+    │
+    ├── 📁 core/                         # Core utilities
+    │   ├── __init__.py
+    │   ├── apps.py                      # App configuration
+    │   ├── models.py                    # TimeStampedModel (abstract)
+    │   ├── exceptions.py                # Custom exceptions
+    │   ├── utils.py                     # Utility functions
+    │   └── admin.py                     # Admin config (empty)
+    │
+    ├── 📁 users/                        # User management
+    │   ├── __init__.py
+    │   ├── apps.py                      # App configuration
+    │   ├── models.py                    # User model (custom)
+    │   ├── serializers.py               # DRF serializers
+    │   ├── views.py                     # API views
+    │   ├── urls.py                      # URL routing
+    │   └── admin.py                     # Admin configuration
+    │
+    ├── 📁 menu/                         # Menu & Products
+    │   ├── __init__.py
+    │   ├── apps.py                      # App configuration
+    │   ├── models.py                    # Category, Product
+    │   ├── serializers.py               # DRF serializers
+    │   ├── views.py                     # API views
+    │   ├── urls.py                      # URL routing
+    │   └── admin.py                     # Admin configuration
+    │
+    ├── 📁 orders/                       # Order management
+    │   ├── __init__.py
+    │   ├── apps.py                      # App configuration
+    │   ├── models.py                    # Order, OrderItem
+    │   ├── serializers.py               # DRF serializers
+    │   ├── views.py                     # API views
+    │   ├── urls.py                      # URL routing
+    │   └── admin.py                     # Admin configuration
+    │
+    └── 📁 wallet/                       # Wallet & Payments
+        ├── __init__.py
+        ├── apps.py                      # App configuration
+        ├── models.py                    # Wallet, Transaction
+        ├── serializers.py               # DRF serializers
+        ├── views.py                     # API views
+        ├── urls.py                      # URL routing
+        ├── admin.py                     # Admin configuration
+        └── wave_service.py              # Wave API service
+
+
+═══════════════════════════════════════════════════════════════
+📊 STATISTIQUES
+═══════════════════════════════════════════════════════════════
+
+📦 Applications Django: 5
+   - core (utilities)
+   - users (authentication)
+   - menu (products)
+   - orders (order management)
+   - wallet (payments)
+
+🗄️ Modèles: 8
+   - TimeStampedModel (abstract)
+   - User
+   - Category
+   - Product
+   - Order
+   - OrderItem
+   - Wallet
+   - Transaction
+
+🌐 Endpoints API: 17+
+   ├─ Auth: 3 endpoints
+   ├─ Menu: 4 endpoints
+   ├─ Orders: 6 endpoints
+   └─ Wallet: 4 endpoints
+
+📚 Documentation: 5 fichiers MD
+
+🚀 Scripts: 3 fichiers
+
+⚙️ Configuration: 6 fichiers
+
+
+═══════════════════════════════════════════════════════════════
+🎯 FONCTIONNALITÉS
+═══════════════════════════════════════════════════════════════
+
+✅ Authentification Django
+✅ Login/Register automatique via Telegram
+✅ Gestion du menu avec catégories
+✅ Création de commandes multi-produits
+✅ Calcul automatique des totaux
+✅ Système de wallet
+✅ Paiement depuis le wallet
+✅ Historique des transactions
+✅ Interface admin complète
+✅ Documentation API (Swagger + ReDoc)
+✅ CORS pour n8n
+✅ Structure Wave API prête
+✅ Code 100% typé
+✅ Orienté objet
+✅ Fichiers < 250 lignes
+
+
+═══════════════════════════════════════════════════════════════
+🔗 URLS IMPORTANTES
+═══════════════════════════════════════════════════════════════
+
+Admin Panel:        http://127.0.0.1:8000/admin/
+Swagger UI:         http://127.0.0.1:8000/api/docs/
+ReDoc:              http://127.0.0.1:8000/api/redoc/
+OpenAPI Schema:     http://127.0.0.1:8000/api/schema/
+
+API Base:           http://127.0.0.1:8000/api/
+├─ Auth:            /api/auth/
+├─ Menu:            /api/menu/
+├─ Orders:          /api/orders/
+└─ Wallet:          /api/wallet/
+
+
+═══════════════════════════════════════════════════════════════
+👥 COMPTES DE TEST
+═══════════════════════════════════════════════════════════════
+
+Admin:
+   Username: admin
+   Password: admin123
+   Wallet:   10,000 FCFA
+
+Client Test:
+   Username: client_test
+   Password: client123
+   Wallet:   10,000 FCFA
+   Telegram: 123456789
+
+Cuisinier:
+   Username: cuisinier
+   Password: cuisinier123
+   Role:     Staff
+
+
+═══════════════════════════════════════════════════════════════
+🚀 DÉMARRAGE RAPIDE
+═══════════════════════════════════════════════════════════════
+
+Windows:
+   > quick_start.bat
+
+Linux/Mac:
+   $ chmod +x quick_start.sh
+   $ ./quick_start.sh
+
+Ou manuellement:
+   $ python -m venv venv
+   $ venv\Scripts\activate        # Windows
+   $ source venv/bin/activate     # Linux/Mac
+   $ pip install -r requirements.txt
+   $ python manage.py migrate
+   $ python manage.py shell < setup_initial_data.py
+   $ python manage.py runserver
+
+
+═══════════════════════════════════════════════════════════════
+📦 DONNÉES DE TEST
+═══════════════════════════════════════════════════════════════
+
+Catégories: 4
+   - Plats Principaux
+   - Accompagnements
+   - Boissons
+   - Desserts
+
+Produits: 13
+   - 4 plats (Thiéboudienne, Mafé, Yassa, Thiébou Yapp)
+   - 3 accompagnements (Riz, Attiéké, Aloco)
+   - 4 boissons (Bissap, Bouye, Gingembre, Eau)
+   - 2 desserts (Thiakry, Salade de fruits)
+
+Utilisateurs: 3
+   - 1 admin
+   - 1 client test
+   - 1 cuisinier
+
+
+═══════════════════════════════════════════════════════════════
+🔧 OUTILS DE DÉVELOPPEMENT
+═══════════════════════════════════════════════════════════════
+
+Type checking:    mypy apps/
+Code formatting:  black apps/
+Linting:          flake8 apps/
+Tests:            pytest
+
+
+═══════════════════════════════════════════════════════════════
+📱 INTÉGRATION
+═══════════════════════════════════════════════════════════════
+
+n8n:    Voir N8N_INTEGRATION.md
+Wave:   Voir WAVE_INTEGRATION.md
+API:    Voir API_ENDPOINTS.md
+
+
+═══════════════════════════════════════════════════════════════
+
+Projet créé avec ❤️ pour la démo d'entretien
+Python 3.10+ | Django 5.0 | DRF 3.14
+
+═══════════════════════════════════════════════════════════════

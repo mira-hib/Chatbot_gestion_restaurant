@@ -1,0 +1,65 @@
+
+services:
+  # Django REST API
+  api:
+    build: .
+    container_name: restaurant_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-docker-dev-key-2024
+      - ALLOWED_HOSTS=localhost,127.0.0.1,api
+      - DATABASE_NAME=db.sqlite3
+      - WAVE_API_URL=${WAVE_API_URL:-}
+      - WAVE_API_KEY=${WAVE_API_KEY:-}
+      - WAVE_API_SECRET=${WAVE_API_SECRET:-}
+    networks:
+      - restaurant_network
+    restart: unless-stopped
+
+  # n8n Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: restaurant_n8n
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n_workflows:/home/node/.n8n/workflows
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - WEBHOOK_URL=n8n.ibson.online
+      - N8N_HOST=n8n.ibson.online
+      - DB_SQLITE_POOL_SIZE=5
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - N8N_GIT_NODE_DISABLE_BARE_REPOS=true
+      - N8N_PROTOCOL=https
+      - N8N_PROXY_HOPS=1
+      - N8N_TUNNEL_URL=""
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - N8N_PORT=5678
+      - GENERIC_TIMEZONE=Africa/Dakar
+      # Django API connection
+      - DJANGO_API_URL=http://api:8000
+    networks:
+      - restaurant_network
+    depends_on:
+      - api
+    restart: unless-stopped
+
+networks:
+  restaurant_network:
+    driver: bridge
+
+volumes:
+  static_volume:
+  media_volume:
+  n8n_data:

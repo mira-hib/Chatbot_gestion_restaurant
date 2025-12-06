@@ -1,0 +1,2710 @@
+{
+  "name": "Restaurant Bot - Version Optimisée v3 final",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "9d0240e7-d10e-41c2-9560-b718f6f3c11c",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -4160,
+        -1120
+      ],
+      "webhookId": "telegram-webhook-v2",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Router: Déterminer le type d'événement\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  if (data.callback_query) {\n    // Bouton cliqué\n    items.push({\n      json: {\n        event_type: 'callback',\n        telegram_id: data.callback_query.from.id,\n        chat_id: data.callback_query.message.chat.id,\n        callback_id: data.callback_query.id,\n        data: data.callback_query.data,\n        text: \"\",\n        from: data.callback_query.from,\n        message_id: data.callback_query.message.message_id\n      }\n    });\n  } else if (data.message) {\n    // Message texte\n    items.push({\n      json: {\n        event_type: 'message',\n        telegram_id: data.message.from.id,\n        chat_id: data.message.chat.id,\n        text: data.message.text || '',\n        data: \"\",\n        from: data.message.from\n        \n      }\n    });\n  }\n}\n\nreturn items;"
+      },
+      "id": "be96d284-b2ed-455a-9c6f-ae6c427252c1",
+      "name": "Router: Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3936,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/api/auth/users/login_or_register/",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"telegram_id\": {{ $json.telegram_id }},\n  \"phone_number\": \"+221{{ $json.telegram_id }}\",\n  \"first_name\": \"{{ $json.from.first_name }}\",\n  \"last_name\": \"{{ $json.from.last_name || '' }}\",\n  \"telegram_username\": \"{{ $json.from.username || '' }}\"\n}",
+        "options": {}
+      },
+      "id": "966f776f-45d4-4dee-8186-01fcf3d80ce1",
+      "name": "API: Login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3488,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge: Combiner les deux chemins (avec/sans auth)\nconst items = $input.all();\nreturn items;"
+      },
+      "id": "472a0744-eb91-47ff-84c7-4a39206ba9ba",
+      "name": "Merge Auth Paths",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2944,
+        -1136
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parser les callbacks (boutons cliqués)\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = $('Router: Events').first().json.data;\n  \n  // Format: add_to_cart_PRODUCTID ou checkout ou clear_cart ou pay_order_ORDERID\n  if (data.startsWith('add_to_cart_')) {\n    const productId = parseInt(data.replace('add_to_cart_', ''));\n    items.push({\n      json: {\n        ...item.json,\n        action: 'add_to_cart',\n        product_id: productId\n      }\n    });\n  } else if (data === 'checkout') {\n    items.push({\n      json: {\n        ...item.json,\n        action: 'checkout'\n      }\n    });\n  } else if (data === 'clear_cart') {\n    items.push({\n      json: {\n        ...item.json,\n        action: 'clear_cart'\n      }\n    });\n  } else if (data === 'view_cart') {\n    items.push({\n      json: {\n        ...item.json,\n        action: 'view_cart'\n      }\n    });\n  } else if (data.startsWith('pay_order_')) {\n    const orderId = parseInt(data.replace('pay_order_', ''));\n    items.push({\n      json: {\n        ...item.json,\n        action: 'pay_order',\n        order_id: orderId\n      }\n    });\n  }\n}\n\nreturn items;"
+      },
+      "id": "38054e2d-224f-46b2-984d-8f0607476616",
+      "name": "Parse Callback Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "add-to-cart-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "add_to_cart",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2d5ed7d2-d2f7-4050-80c8-5a73955e300e",
+      "name": "Action: Add to Cart?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gérer le panier en cache\nconst items = [];\nconst staticData = $getWorkflowStaticData('global');\n\nif (!staticData.carts) {\n  staticData.carts = {};\n}\n\nfor (const item of $input.all()) {\n  items.push({\n    json: {\n      ...item.json,\n      cart: $input.first().json.product_id,\n      cart_size: \"\",\n      message: `✅ Produit ajouté au panier!\\n\\nArticles dans le panier: \\n\\nUtilisez /cart pour voir votre panier.`\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "5b2f4943-bb92-49ef-a2c1-df2ba2d141b0",
+      "name": "Add to Cart Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "checkout-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "checkout",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a938764c-e66c-4519-99af-ba945698e2bb",
+      "name": "Action: Checkout?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1488,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Récupérer tous les items du panier depuis l'entrée\nconst cart = $input.all().map(i => i.json);\n\n// Préparation du message\nlet message = '🛒 VOTRE PANIER\\n';\nmessage += '═'.repeat(40) + '\\n\\n';\n\nif (cart.length === 0) {\n\tmessage += 'Votre panier est vide.\\n\\n';\n\tmessage += 'Ajoutez des articles avec /menu.\\n';\n\n\treturn [\n\t\t{\n\t\t\tjson: {\n\t\t\t\terror: true,\n\t\t\t\tmessage,\n\t\t\t\tcart: [],\n\t\t\t\thas_items: false,\n\t\t\t\treply_markup: {\n\t\t\t\t\tinline_keyboard: [\n\t\t\t\t\t\t[\n\t\t\t\t\t\t\t{ text: '🍽️ Retour au menu', callback_data: 'back_to_menu' }\n\t\t\t\t\t\t]\n\t\t\t\t\t]\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t];\n}\n\n// Liste des produits\nfor (const p of cart) {\n\tmessage += `• Produit #${p.product_id} x${p.quantity}\\n`;\n}\n\n// Total\nconst totalItems = cart.reduce((sum, p) => sum + p.quantity, 0);\n\nmessage += '\\n';\nmessage += '═'.repeat(40) + '\\n';\n\tmessage += `Total articles: ${totalItems}\\n\\n`;\nmessage += 'Utilisez les boutons ci-dessous pour gérer votre panier.';\n\n// Boutons Telegram\nconst keyboard = [\n\t[\n\t\t{ text: '💳 Commander maintenant', callback_data: 'checkout' },\n\t\t{ text: '🗑️ Vider le panier', callback_data: 'clear_cart' }\n\t],\n\t[\n\t\t{ text: '🍽️ Retour au menu', callback_data: 'back_to_menu' }\n\t]\n];\n\n// Retour unique\nreturn [\n\t{\n\t\tjson: {\n\t\t\terror: false,\n\t\t\tmessage,\n\t\t\tcart,\n            token: $('Action: Checkout?').first().json.token,\n            telegram_id: $input.first().json.telegram_id,\n            chat_id: $('Router: Events').first().json.chat_id,\n            callback_id: $('Router: Events').first().json.callback_id,\n\t\t\thas_items: true,\n\t\t\treply_markup: {\n\t\t\t\tinline_keyboard: keyboard\n\t\t\t}\n\t\t}\n\t}\n];\n"
+      },
+      "id": "f4a93fd1-afdc-4144-b890-6d17ca5f007b",
+      "name": "Prepare Checkout",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cart-not-empty-condition",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9195d28a-6d20-44f2-9065-e8c637082085",
+      "name": "Cart Not Empty?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8000/api/orders/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization  ",
+              "value": "=Bearer {{ $('Prepare Checkout').item.json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"items\": {{ JSON.stringify($json.cart) }},\n  \"notes\": \"Commande depuis Telegram Bot\",\n  \"delivery_address\": \"treicheville \"\n}",
+        "options": {}
+      },
+      "id": "1743094a-bf0b-4972-9343-2f15cbffe887",
+      "name": "API: Create Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -560,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vider le panier après commande\nconst items = [];\n\nfor (const item of $input.all()) {\n  // Formater le message de confirmation\n  const order = item.json;\n  let message = '✅ Commande créée avec succès!\\n\\n';\n  message += `📦 Commande: ${order.order_number}\\n`;\n  message += `💰 Total: ${order.total_amount} FCFA\\n`;\n  message += `📍 Status: ${order.status}\\n\\n`;\n  message += 'Articles:\\n';\n  \n  order.items.forEach(item => {\n    message += `• ${item.product.name} x${item.quantity} - ${item.unit_price} FCFA\\n`;\n  });\n  \n  message += '\\n🔔 Vous recevrez une notification quand votre commande sera prête.';\n  \n  items.push({\n    json: {\n      ...item.json,\n      formatted_message: message\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "1abc06cf-65bb-4285-9cc1-98cd5fb77102",
+      "name": "Clear Cart & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Prepare Checkout').item.json.chat_id }}",
+        "text": "={{ $json.formatted_message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9939caba-891d-4417-a142-02f4b105c2a2",
+      "name": "Send Order Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -32,
+        1264
+      ],
+      "webhookId": "70507079-112c-4ffa-bd79-b28692d6a75a",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Message de bienvenue\nconst items = [];\n\nfor (const item of $input.all()) {\n  const firstName =  $('Get row(s)').first().json.firstName;\n  \n  const message = `👋 Bonjour ${firstName}!\\n\\nBienvenue dans notre restaurant!\\n\\nCommandes disponibles:\\n🍽️ /menu - Voir le menu\\n🛒 /cart - Voir mon panier\\n💰 /wallet - Mon portefeuille\\n📦 /orders - Mes commandes\\n💳 /transactions - Mes transactions\\n\\nCliquez sur /menu pour commencer!`;\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "0e37c9c9-cce1-4d35-8d15-80a2a7741ef2",
+      "name": "Format Start Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -1792
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "58ccc0f2-babb-47b3-b5a0-540251af33a6",
+      "name": "Send Start Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -1568,
+        -1792
+      ],
+      "webhookId": "48db3e48-3d10-4b6b-9af4-8222422b50c1",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/menu/products/menu/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "273e4646-69c7-4e95-bae4-32a536e60e4f",
+      "name": "API: Get Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1744,
+        -1312
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formater le menu avec boutons inline\nconst items = [];\n\nfor (const item of $input.all()) {\n  const menuData = item.json;\n  const menu = menuData.menu;\n  \n  let message = '🍽️ MENU DU RESTAURANT\\n';\n  message += '═'.repeat(40) + '\\n\\n';\n  \n  const keyboard = [];\n  \n  menu.forEach(category => {\n    message += `📂 ${category.name.toUpperCase()}\\n`;\n    message += '-'.repeat(40) + '\\n';\n    \n    category.products.forEach(product => {\n      message += `${product.name}\\n`;\n      message += `💰 ${product.price} FCFA\\n\\n`;\n      \n      // Ajouter bouton pour ce produit\n      keyboard.push([{\n        text: `🛒 ${product.name} - ${product.price} FCFA`,\n        callback_data: `add_to_cart_${product.id}`\n      }]);\n    });\n    \n    message += '\\n';\n  });\n  \n  message += '═'.repeat(40) + '\\n';\n  message += `Total: ${menuData.total_products} produits disponibles\\n\\n`;\n  message += '👆 Cliquez sur un produit pour l\\'ajouter au panier';\n  \n  // Ajouter boutons de gestion du panier\n  keyboard.push([\n    { text: '🛒 Voir mon panier', callback_data: 'view_cart' },\n    { text: '💳 Commander', callback_data: 'checkout' }\n  ]);\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message,\n      reply_markup: {\n        inline_keyboard: keyboard\n      }\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "899eba19-8cc6-403f-8098-d9d6aae0bd8f",
+      "name": "Format Menu with Buttons",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        -1312
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Envoyer un message par plat avec son bouton d'ajout au panier\nconst items = [];\n\nfor (const item of $input.all()) {\n  const TELEGRAM_BOT_TOKEN = $env.TELEGRAM_BOT_TOKEN;\n  const chatId = $('Router: Events').first().json.chat_id;\n  const menuData = item.json;\n  const menu = menuData.menu;\n  \n  // Envoyer le titre du menu\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n    json: true,\n    body: {\n      chat_id: chatId,\n      text: `🍽️ MENU DU RESTAURANT\\n${'═'.repeat(40)}\\n\\nTotal: ${menuData.total_products} produits disponibles`\n    }\n  });\n  \n  // Envoyer chaque plat par catégorie\n  for (const category of menu) {\n    // Envoyer le titre de catégorie\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n      json: true,\n      body: {\n        chat_id: chatId,\n        text: `📂 ${category.name.toUpperCase()}\\n${'-'.repeat(40)}`\n      }\n    });\n    \n    // Envoyer chaque produit avec son bouton\n    for (const product of category.products) {\n      const productMsg = `${product.name}\\n💰 ${product.price} FCFA`;\n      \n      await this.helpers.httpRequest({\n        method: 'POST',\n        url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n        json: true,\n        body: {\n          chat_id: chatId,\n          text: productMsg,\n          reply_markup: {\n            inline_keyboard: [\n              [{ text: `🛒 Ajouter au panier`, callback_data: `add_to_cart_${product.id}` }]\n            ]\n          }\n        }\n      });\n    }\n  }\n  \n  // Envoyer les boutons de gestion du panier\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n    json: true,\n    body: {\n      chat_id: chatId,\n      text: '👆 Choisissez vos plats puis gérez votre panier:',\n      reply_markup: {\n        inline_keyboard: [\n          [\n            { text: '🛒 Voir mon panier', callback_data: 'view_cart' },\n            { text: '💳 Commander', callback_data: 'checkout' }\n          ]\n        ]\n      }\n    }\n  });\n  \n  items.push({ json: { success: true } });\n}\n\nreturn items;"
+      },
+      "id": "5f308cb6-8b52-49f5-9e0f-57a1062767b3",
+      "name": "Send Menu with Buttons",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1312,
+        -1312
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Récupérer tous les items envoyés en entrée\nconst inputItems = $input.all().map(i => i.json);\n\n// Si aucun produit\nlet message = '🛒 VOTRE PANIER\\n';\nmessage += '═'.repeat(40) + '\\n\\n';\n\nif (inputItems.length === 0) {\n\tmessage += 'Votre panier est vide.\\n\\n';\n\tmessage += 'Ajoutez des articles avec /menu.\\n';\n\n\treturn [\n\t\t{\n\t\t\tjson: {\n\t\t\t\tmessage,\n\t\t\t\thas_items: false,\n\t\t\t\treply_markup: {\n\t\t\t\t\tinline_keyboard: [\n\t\t\t\t\t\t[\n\t\t\t\t\t\t\t{ text: '🍽️ Retour au menu', callback_data: 'back_to_menu' }\n\t\t\t\t\t\t]\n\t\t\t\t\t]\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t];\n}\n\n// Construire le message panier\nfor (const p of inputItems) {\n\tmessage += `• Produit #${p.product_id}  x${p.quantity}\\n`;\n}\n\n// Total\nconst totalItems = inputItems.reduce((sum, p) => sum + p.quantity, 0);\n\nmessage += '\\n';\nmessage += '═'.repeat(40) + '\\n';\nmessage += `Total articles: ${totalItems}\\n\\n`;\nmessage += 'Utilisez les boutons ci-dessous pour gérer votre panier.';\n\n// Inline keyboard Telegram\nconst keyboard = [\n\t[\n\t\t{ text: '💳 Commander maintenant', callback_data: 'checkout' },\n\t\t{ text: '🗑️ Vider le panier', callback_data: 'clear_cart' }\n\t],\n\t[\n\t\t{ text: '🍽️ Retour au menu', callback_data: 'back_to_menu' }\n\t]\n];\n\n// Retour unique\nreturn [\n\t{\n\t\tjson: {\n\t\t\tmessage,\n            chat_id: $('Router: Events').first().json.chat_id,\n            event_type: $('Router: Events').first().json.event_type,\n            data: $('Router: Events').first().json.data,\n            callback_id: $('Router: Events').first().json.callback_id,\n\t\t\thas_items: true,\n\t\t\treply_markup: {\n\t\t\t\tinline_keyboard: keyboard\n\t\t\t}\n\t\t}\n\t}\n];\n"
+      },
+      "id": "bde5eccd-c1d1-4689-a914-001ab9aa9c01",
+      "name": "Format Cart",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1312,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.reply_markup.inline_keyboard[0][0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.reply_markup.inline_keyboard[0][0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.reply_markup.inline_keyboard[0][1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.reply_markup.inline_keyboard[0][1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.reply_markup.inline_keyboard[1][0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.reply_markup.inline_keyboard[1][0].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ea9e306f-fb19-4448-9972-afda6d8fef9f",
+      "name": "Send Cart",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -1120,
+        -1120
+      ],
+      "webhookId": "7a9ce44e-1d7a-4de7-afac-1870e847671b",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c4382ee8-a72f-4096-a8b1-4a785faa875a",
+      "name": "Queue: Cron (30s)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        -4160,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/orders/pending/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer b5834fa8ef2f4fdecd4d4e09a37e4e9cbfc2f5cf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "27c08a0e-538f-4fbb-b200-b4a02d7196ee",
+      "name": "Queue: Get Pending Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3936,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a529d7be-2c9b-4ea9-aab5-87457ce5cf27",
+      "name": "Queue: Split Orders",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3712,
+        144
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "dc993029-490a-41d2-85f7-c986061f5186",
+      "name": "Queue: Wait 5s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3456,
+        128
+      ],
+      "webhookId": "b8a58ef9-c934-493f-bd9a-34200b5340bc"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Préparer notification pour l'utilisateur\nconst items = [];\n\nfor (const item of $input.all()) {\n  const order = item.json;\n  \n  let message = '📦 Mise à jour de commande\\n\\n';\n  message += `Commande: ${order.order_number}\\n`;\n  message += `Status: En préparation\\n`;\n  message += `Total: ${order.total_amount} FCFA\\n\\n`;\n  message += 'Votre commande est en cours de préparation!\\n';\n  message += 'Vous serez notifié quand elle sera prête.';\n  \n  items.push({\n    json: {\n      ...item.json,\n      telegram_id: order.user.telegram_id,\n      message: message\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "f5cc8128-d126-499c-8167-2b5e72678915",
+      "name": "Queue: Format Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3264,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "=1665648188",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b0521471-5003-4687-9d9c-14fab86b1a09",
+      "name": "Queue: Send Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -3040,
+        128
+      ],
+      "webhookId": "608cbdfe-6d1e-4b5d-8ff3-8e5f01246f77",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e49d88d9-d7d4-4328-9598-03ce22933bb0",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "clear_cart",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1440,
+        944
+      ],
+      "id": "771bed15-3514-4cd1-b79e-45191eb59387",
+      "name": "action : clear_cart?"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1ff70b2b-97cc-4c1e-b776-16853cde3303"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "commande start"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b56719fa-ba1c-4e51-a544-d36248327b86",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/menu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "commande menu"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3260d649-1b92-4a16-8d6c-b77c60f31313",
+                    "leftValue": "={{ $('Router: Events').item.json.data }}",
+                    "rightValue": "back_to_menu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "go to menu"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "075eede2-5f1c-413b-8ace-ca7ffd117322",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/cart",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view cart command"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "eadf30e5-10a8-4e1f-82e1-3e013b8dbbee",
+                    "leftValue": "={{ $('Router: Events').item.json.data }}",
+                    "rightValue": "view_cart",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view cart button"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "22cfaf0a-b5ed-4ecf-b7f0-f9b834eb9638",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/orders",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view orders"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "wallet-command",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/wallet",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view wallet"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "transactions-command",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/transactions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "view transactions"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "recharge-command",
+                    "leftValue": "={{ $('Router: Events').item.json.text }}",
+                    "rightValue": "/recharge",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "recharge wallet"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "callbacks-condition",
+                    "leftValue": "={{ $('Router: Events').item.json.event_type }}",
+                    "rightValue": "callback",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "handle callbacks"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -2448,
+        -1264
+      ],
+      "id": "de1d70cd-24a5-44ec-8819-8f73967fac82",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Router: Events').item.json.callback_id }}",
+        "additionalFields": {
+          "show_alert": true,
+          "text": "={{ $json.message }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -528,
+        592
+      ],
+      "id": "1ecbc3fc-7b81-430c-bba3-3f7be21cc0dc",
+      "name": "Answer Query a callback",
+      "webhookId": "220da7e4-afc3-461d-b164-da284132376c",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "773b9692-e725-486e-9b64-d2b2061c42d2",
+              "leftValue": "={{ $('Router: Events').item.json.data }}",
+              "rightValue": "view_cart",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1104,
+        -960
+      ],
+      "id": "141393f7-4ec4-4379-b1a4-a2fddfccedf7",
+      "name": "If callback?"
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Router: Events').item.json.callback_id }}",
+        "additionalFields": {
+          "show_alert": true,
+          "text": "={{ $json.message }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        -1136
+      ],
+      "id": "b2b28440-10ab-47dd-96f8-eda1f3005889",
+      "name": "Answer Query a callback1",
+      "webhookId": "220da7e4-afc3-461d-b164-da284132376c",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Router: Events').item.json.callback_id }}",
+        "additionalFields": {
+          "show_alert": true,
+          "text": "=🗑️ Panier vidé avec succès !"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -960,
+        928
+      ],
+      "id": "ea836db4-4ef4-4080-858d-208ad2efc1a0",
+      "name": "Answer Query a callback2",
+      "webhookId": "220da7e4-afc3-461d-b164-da284132376c",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Prepare Checkout').item.json.callback_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        1264
+      ],
+      "id": "d69c31b3-2941-40a1-a9ce-55d38ff88593",
+      "name": "Answer Query a callback3",
+      "webhookId": "220da7e4-afc3-461d-b164-da284132376c",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Router: Events').item.json.callback_id }}",
+        "additionalFields": {
+          "show_alert": true,
+          "text": "votre panier est vide"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -560,
+        1392
+      ],
+      "id": "fb714158-8629-48b9-ad8d-ee5e7ea2619f",
+      "name": "Answer Query a callback4",
+      "webhookId": "220da7e4-afc3-461d-b164-da284132376c",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "v3yhg7WZpKkNmurn",
+          "mode": "list",
+          "cachedResultName": "restaurant_client",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/v3yhg7WZpKkNmurn"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telegram_id": "={{ $json.user.telegram_id }}",
+            "user_id": "={{ $json.user.id }}",
+            "token": "={{ $json.token }}",
+            "firstName": "={{ $json.user.first_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telegram_id",
+              "displayName": "telegram_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "token",
+              "displayName": "token",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "optimizeBulk": false
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -3168,
+        -1264
+      ],
+      "id": "889c1df2-890e-4e6b-9946-9b67583721ae",
+      "name": "Insert row"
+    },
+    {
+      "parameters": {
+        "operation": "rowExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "v3yhg7WZpKkNmurn",
+          "mode": "list",
+          "cachedResultName": "restaurant_client",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/v3yhg7WZpKkNmurn"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -3712,
+        -1024
+      ],
+      "id": "8a25dbab-ba53-49a8-a4e3-f518298b3895",
+      "name": "If row exists"
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "v3yhg7WZpKkNmurn",
+          "mode": "list",
+          "cachedResultName": "restaurant_client",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/v3yhg7WZpKkNmurn"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -3712,
+        -1216
+      ],
+      "id": "f7208b99-3d7c-4fa7-8852-79243ee95d6b",
+      "name": "If row does not exist"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "v3yhg7WZpKkNmurn",
+          "mode": "list",
+          "cachedResultName": "restaurant_client",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/v3yhg7WZpKkNmurn"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -3472,
+        -1024
+      ],
+      "id": "139b3756-06c4-4731-a9d6-6d2ea7e95b9a",
+      "name": "Get row(s)",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -3264,
+        -1024
+      ],
+      "id": "1c0993a7-11ea-49e0-81ef-7b1189c123e8",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "rowExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "product_id",
+              "keyValue": "={{ $json.product_id }}"
+            },
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        464
+      ],
+      "id": "6d771747-49a2-4fd7-8b72-258f654cf1f4",
+      "name": "If row exists1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            },
+            {
+              "keyName": "product_id",
+              "keyValue": "={{ $json.product_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "product_id": "={{ $json.product_id }}",
+            "quantity": "={{ $json.quantity+1}}",
+            "telegram_id": "={{ $json.telegram_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telegram_id",
+              "displayName": "telegram_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "product_id",
+              "displayName": "product_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -976,
+        464
+      ],
+      "id": "f931a455-7adc-48cd-9bc8-fab6ac12e720",
+      "name": "Update row(s)"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "product_id": "={{ $json.product_id }}",
+            "telegram_id": "={{ $json.telegram_id }}",
+            "quantity": "1"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telegram_id",
+              "displayName": "telegram_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "product_id",
+              "displayName": "product_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        688
+      ],
+      "id": "899f31ee-ecee-4072-8b95-14fd89b3951d",
+      "name": "Insert row1"
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            },
+            {
+              "keyName": "product_id",
+              "keyValue": "={{ $json.product_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        688
+      ],
+      "id": "63fe643f-6b07-4f06-a3bb-a4fe36adaae0",
+      "name": "If row does not exist1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            },
+            {
+              "keyName": "product_id",
+              "keyValue": "={{ $json.product_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1152,
+        464
+      ],
+      "id": "00057b80-4171-49b6-a7c2-7ebbdafee30a",
+      "name": "Get row(s)1"
+    },
+    {
+      "parameters": {
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        },
+        "options": {
+          "dryRun": false
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1184,
+        928
+      ],
+      "id": "6a2576c0-252a-4267-9545-f81dad5367ed",
+      "name": "Delete row(s)"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        -1120
+      ],
+      "id": "0a5cbeea-fc30-4481-a6f5-95f207c0a6f9",
+      "name": "Get row(s)2",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        1200
+      ],
+      "id": "db11f60e-1bc2-465b-be4c-57093c53e44f",
+      "name": "Get row(s)3"
+    },
+    {
+      "parameters": {
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $('Prepare Checkout').item.json.telegram_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        1072
+      ],
+      "id": "2d90657a-e68b-423e-8b17-46e5e37d8417",
+      "name": "Delete row(s)1"
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/orders/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "790b9de9-a89c-4af6-a24f-a4bb973d5d7c",
+      "name": "API: Get Orders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1728,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format orders list for Telegram\nconst items = [];\n\nfor (const item of $input.all()) {\n  const orders = item.json.results || item.json;\n  \n  let message = '📦 VOS COMMANDES\\n';\n  message += '═'.repeat(40) + '\\n\\n';\n  \n  if (!orders || orders.length === 0) {\n    message += 'Vous n\\'avez aucune commande.\\n\\n';\n    message += 'Utilisez /menu pour commander!';\n    \n    items.push({\n      json: {\n        ...item.json,\n        message: message,\n        has_orders: false\n      }\n    });\n    continue;\n  }\n  \n  const keyboard = [];\n  \n  // Handle both array and paginated response\n  const orderList = Array.isArray(orders) ? orders : (orders.results || []);\n  \n  orderList.forEach((order, index) => {\n    // Format status with emoji\n    let statusEmoji = '⏳';\n    let statusLabel = 'En attente';\n    if (order.status === 'PENDING') {\n      statusEmoji = '⏳';\n      statusLabel = 'En attente';\n    } else if (order.status === 'CONFIRMED') {\n      statusEmoji = '✅';\n      statusLabel = 'Confirmée';\n    } else if (order.status === 'PREPARING') {\n      statusEmoji = '🔄';\n      statusLabel = 'En préparation';\n    } else if (order.status === 'READY') {\n      statusEmoji = '🚀';\n      statusLabel = 'Prête';\n    } else if (order.status === 'DELIVERED') {\n      statusEmoji = '✅';\n      statusLabel = 'Livrée';\n    } else if (order.status === 'CANCELLED') {\n      statusEmoji = '❌';\n      statusLabel = 'Annulée';\n    }\n    \n    message += `Commande #${order.order_number}\\n`;\n    message += `Status: ${statusEmoji} ${statusLabel}\\n`;\n    message += `💰 Total: ${order.formatted_total || (order.total_amount + ' FCFA')}\\n`;\n    message += `📅 Date: ${new Date(order.created_at).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})}\\n`;\n    \n    // Add payment status\n    if (!order.is_paid) {\n      message += `💳 Statut paiement: ❌ Non payée\\n`;\n      // Add pay button for unpaid orders\n      keyboard.push([{\n        text: `💳 Payer cette commande`,\n        callback_data: `pay_order_${order.id}`\n      }]);\n    } else {\n      message += `💳 Statut paiement: ✅ Payée\\n`;\n    }\n    \n    // Show order items\n    if (order.items && order.items.length > 0) {\n      message += '\\nItems:\\n';\n      order.items.forEach(item => {\n        message += `• ${item.product.name} x${item.quantity}\\n`;\n      });\n    }\n    \n    message += '\\n' + '-'.repeat(40) + '\\n\\n';\n  });\n  \n  message += '═'.repeat(40) + '\\n';\n  message += `Total: ${orderList.length} commande(s)`;\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message,\n      has_orders: true,\n      has_buttons: keyboard.length > 0,\n      reply_markup: {\n        inline_keyboard: keyboard\n      }\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "5294e499-713f-4562-b8d2-a2d6a023fa6f",
+      "name": "Format Orders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Envoyer un message par commande avec son bouton de paiement\nconst items = [];\n\nfor (const item of $input.all()) {\n  const TELEGRAM_BOT_TOKEN = $env.TELEGRAM_BOT_TOKEN;\n  const chatId = $('Switch').first().json.chat_id;\n  const orders = item.json.results || item.json;\n  \n  if (!orders || orders.length === 0) {\n    // Envoyer message \"aucune commande\"\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n      json: true,\n      body: {\n        chat_id: chatId,\n        text: '📦 VOS COMMANDES\\n' + '═'.repeat(40) + '\\n\\n' +\n              'Vous n\\'avez aucune commande.\\n\\n' +\n              'Utilisez /menu pour commander!'\n      }\n    });\n    items.push({ json: { success: true } });\n    continue;\n  }\n  \n  // Envoyer le titre\n  await this.helpers.httpRequest({\n    method: 'POST',\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n    json: true,\n    body: {\n      chat_id: chatId,\n      text: `📦 VOS COMMANDES\\n${'═'.repeat(40)}\\n\\nTotal: ${orders.length} commande(s)`\n    }\n  });\n  \n  // Envoyer chaque commande séparément\n  const orderList = Array.isArray(orders) ? orders : (orders.results || []);\n  \n  for (const order of orderList) {\n    // Format status\n    let statusEmoji = '⏳';\n    let statusLabel = 'En attente';\n    if (order.status === 'PENDING') { statusEmoji = '⏳'; statusLabel = 'En attente'; }\n    else if (order.status === 'CONFIRMED') { statusEmoji = '✅'; statusLabel = 'Confirmée'; }\n    else if (order.status === 'PREPARING') { statusEmoji = '🔄'; statusLabel = 'En préparation'; }\n    else if (order.status === 'READY') { statusEmoji = '🚀'; statusLabel = 'Prête'; }\n    else if (order.status === 'DELIVERED') { statusEmoji = '✅'; statusLabel = 'Livrée'; }\n    else if (order.status === 'CANCELLED') { statusEmoji = '❌'; statusLabel = 'Annulée'; }\n    \n    let orderMsg = `Commande #${order.order_number}\\n`;\n    orderMsg += `Status: ${statusEmoji} ${statusLabel}\\n`;\n    orderMsg += `💰 Total: ${order.formatted_total || (order.total_amount + ' FCFA')}\\n`;\n    orderMsg += `📅 Date: ${new Date(order.created_at).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})}\\n`;\n    orderMsg += `💳 Statut paiement: ${!order.is_paid ? '❌ Non payée' : '✅ Payée'}\\n`;\n    \n    if (order.items && order.items.length > 0) {\n      orderMsg += '\\nItems:\\n';\n      order.items.forEach(itm => {\n        orderMsg += `• ${itm.product.name} x${itm.quantity}\\n`;\n      });\n    }\n    \n    const body = {\n      chat_id: chatId,\n      text: orderMsg\n    };\n    \n    // Ajouter bouton de paiement si non payée\n    if (!order.is_paid) {\n      body.reply_markup = {\n        inline_keyboard: [\n          [{ text: '💳 Payer cette commande', callback_data: `pay_order_${order.id}` }]\n        ]\n      };\n    }\n    \n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n      json: true,\n      body: body\n    });\n  }\n  \n  items.push({ json: { success: true } });\n}\n\nreturn items;\n\n"
+      },
+      "id": "aa7cb49c-aeb1-4036-a919-a7fd09bcbdce",
+      "name": "Send Orders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/wallet/transactions/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1638fee8-00cc-44b6-947e-ccc7a3b652b0",
+      "name": "API: Get Transactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1712,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format transactions list for Telegram\nconst items = [];\n\nfor (const item of $input.all()) {\n  const transactions = item.json.results || item.json;\n  \n  let message = '📊 HISTORIQUE DES TRANSACTIONS\\n';\n  message += '═'.repeat(40) + '\\n\\n';\n  \n  if (!transactions || transactions.length === 0) {\n    message += 'Aucune transaction trouvée.\\n\\n';\n    message += 'Utilisez /wallet pour voir votre portefeuille.';\n    \n    items.push({\n      json: {\n        ...item.json,\n        message: message\n      }\n    });\n    continue;\n  }\n  \n  // Handle both array and paginated response\n  const txList = Array.isArray(transactions) ? transactions : (transactions.results || []);\n  \n  txList.slice(0, 10).forEach((tx, index) => {\n    // Format type with emoji\n    const typeEmoji = tx.type === 'CREDIT' ? '💰' : '💸';\n    const typeLabel = tx.type === 'CREDIT' ? 'Crédit' : 'Débit';\n    \n    // Format status with emoji\n    let statusEmoji = '⏳';\n    if (tx.status === 'COMPLETED') statusEmoji = '✅';\n    else if (tx.status === 'FAILED') statusEmoji = '❌';\n    \n    message += `${typeEmoji} ${typeLabel}: ${tx.formatted_amount || (tx.amount + ' FCFA')}\\n`;\n    \n    if (tx.description) {\n      message += `   ${tx.description}\\n`;\n    }\n    \n    message += `   ${new Date(tx.created_at).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})}\\n`;\n    message += `   Status: ${statusEmoji} ${tx.status}\\n`;\n    \n    if (tx.transaction_id) {\n      message += `   ID: ${tx.transaction_id}\\n`;\n    }\n    \n    message += '\\n' + '-'.repeat(40) + '\\n\\n';\n  });\n  \n  message += '═'.repeat(40) + '\\n';\n  \n  const totalCount = Array.isArray(transactions) ? transactions.length : (transactions.count || txList.length);\n  if (totalCount > 10) {\n    message += `Affichage des 10 dernières transactions sur ${totalCount} au total`;\n  } else {\n    message += `Total: ${totalCount} transaction(s)`;\n  }\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "a54b9bfc-9a2f-40ad-b07a-0f96a6fa54c1",
+      "name": "Format Transactions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1520,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Router: Events').item.json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3c1553cb-4553-4f6e-aa2e-2ac51c87e256",
+      "name": "Send Transactions",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -1312,
+        -192
+      ],
+      "webhookId": "send-transactions-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/wallet/wallets/my_wallet/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d99da602-5530-4d2e-9d7c-196e9005df83",
+      "name": "API: Get Wallet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1728,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format wallet balance for Telegram\nconst items = [];\n\nfor (const item of $input.all()) {\n  const wallet = item.json;\n  \n  let message = '💰 VOTRE PORTEFEUILLE\\n';\n  message += '═'.repeat(40) + '\\n\\n';\n  \n  message += `💵 Solde actuel: ${wallet.formatted_balance || wallet.balance + ' FCFA' || '0 FCFA'}\\n\\n`;\n  \n  message += '═'.repeat(40) + '\\n';\n  message += 'Utilisez /transactions pour voir l\\'historique complet.';\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "9db4487d-c5fc-4d9f-adb2-a1a3fcc6c486",
+      "name": "Format Wallet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Router: Events').item.json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e386fc16-6094-46a9-b9de-0d02eb9b49d7",
+      "name": "Send Wallet",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -1328,
+        -400
+      ],
+      "webhookId": "send-wallet-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "pay-order-condition",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "pay_order",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "afc30964-2887-4854-a049-ad314ac6faba",
+      "name": "Action: Pay Order?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/api/wallet/wallets/pay_order/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"order_id\": {{ $json.order_id }}\n}",
+        "options": {}
+      },
+      "id": "993eac71-9c1b-47e6-b5e0-01a2df9d4d7c",
+      "name": "API: Pay Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -1280,
+        160
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format payment confirmation\nconst items = [];\n\nfor (const item of $input.all()) {\n  let message = '';\n  \n  // Check if payment was successful (check for error field)\n  if (item.json.error) {\n    // Payment failed\n    message = '❌ PAIEMENT ÉCHOUÉ\\n\\n';\n    message += item.json.error + '\\n\\n';\n    \n    if (item.json.current_balance && item.json.required_amount) {\n      message += `Solde actuel: ${item.json.current_balance}\\n`;\n      message += `Montant requis: ${item.json.required_amount}\\n\\n`;\n    }\n    \n    message += 'Veuillez recharger votre compte ou vérifiez votre solde avec /wallet';\n  } else if (item.json.message || item.json.transaction) {\n    // Payment successful\n    message = '✅ PAIEMENT EFFECTUÉ !\\n\\n';\n    message += `Commande: #${item.json.order_number || 'N/A'}\\n`;\n    \n    if (item.json.transaction) {\n      message += `Montant payé: ${item.json.transaction.formatted_amount || (item.json.transaction.amount + ' FCFA')}\\n`;\n    }\n    \n    message += `\\nNouveau solde: ${item.json.remaining_balance || 'N/A'}\\n\\n`;\n    message += 'Merci pour votre paiement !';\n  } else {\n    // Unknown error\n    message = '❌ Une erreur est survenue\\n\\n';\n    message += 'Veuillez réessayer ou contacter le support.';\n  }\n  \n  items.push({\n    json: {\n      ...item.json,\n      message: message,\n      callback_id: $('Router: Events').item.json.callback_id\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "a956a4ee-3877-4d90-8e5e-f396db5a4c76",
+      "name": "Format Payment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1072,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Router: Events').item.json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f46e6562-188f-44fd-a58a-5c7ee6073cf2",
+      "name": "Send Payment Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -864,
+        160
+      ],
+      "webhookId": "send-payment-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $('Router: Events').item.json.callback_id }}",
+        "additionalFields": {
+          "show_alert": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -656,
+        160
+      ],
+      "id": "a7cbd105-aa31-4376-82c7-fa31e0151867",
+      "name": "Answer Payment Callback",
+      "webhookId": "answer-payment-callback",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "ELoPM3ZHtz2IfSA8",
+          "mode": "list",
+          "cachedResultName": "panier_restaurant",
+          "cachedResultUrl": "/projects/pTi9iSiThYJIuozF/datatables/ELoPM3ZHtz2IfSA8"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telegram_id",
+              "keyValue": "={{ $json.telegram_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -1520,
+        -960
+      ],
+      "id": "a3f922b8-ea05-4537-b8b4-16e1a3795d4a",
+      "name": "If row does not exist2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1744,
+        -1120
+      ],
+      "id": "a65fd669-9e71-4704-9ac9-ab747a09e724",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"message\": \"votre panier est vide\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1312,
+        -960
+      ],
+      "id": "9466333a-1046-4254-9988-35daad6edbec",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Router: Events').item.json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b711097a-5396-47b0-bb08-93a51d4cff92",
+      "name": "Send Cart1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        -608,
+        -944
+      ],
+      "webhookId": "7a9ce44e-1d7a-4de7-afac-1870e847671b",
+      "credentials": {
+        "telegramApi": {
+          "id": "duvOx83pW7SVACSh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1f22198-91a7-4b71-8a51-4258a6970c0a",
+              "leftValue": "={{ $('Edit Fields').item.json.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -880,
+        -928
+      ],
+      "id": "1b757817-17f3-49e7-abae-7abac628903d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "content": "# Point d'entrée du bot:\n- Trigger Telegram\n- Router des événements\n- Authentification",
+        "height": 640,
+        "width": 1392
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -4208,
+        -1440
+      ],
+      "typeVersion": 1,
+      "id": "144a8bdf-2563-4867-8dac-111a803f9921",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# Affichage menu et panier\n-afficher et formater le menu\n-afficher et formater le panier",
+        "height": 704,
+        "width": 1392,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1808,
+        -1488
+      ],
+      "typeVersion": 1,
+      "id": "f237726d-da41-40a4-99aa-b9516a870a10",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# Etat du compte \n-consulter le solde\n-voir les commandes \n-consulter les transaction",
+        "height": 736,
+        "width": 800,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1808,
+        -752
+      ],
+      "typeVersion": 1,
+      "id": "85aee210-4362-4b39-95af-802ad3ea9fad",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "# Gestion des callsback\n-ajout item au panier\n-payer commande\n-vider panier\n-confirmer comande",
+        "height": 1568,
+        "width": 2304,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1856,
+        16
+      ],
+      "typeVersion": 1,
+      "id": "d7acd825-e410-4044-9a24-f4348e2c327b",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "# notification au restaurant\n-récupère les commandes \n-envoie des commandes au cusiniers",
+        "height": 560,
+        "width": 1536,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -4272,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "42a202a2-6a7c-46bb-8a79-faec8e0a4f54",
+      "name": "Sticky Note4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Router: Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router: Events": {
+      "main": [
+        [
+          {
+            "node": "If row exists",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If row does not exist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Login": {
+      "main": [
+        [
+          {
+            "node": "Insert row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Auth Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Auth Paths": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback Data": {
+      "main": [
+        [
+          {
+            "node": "Action: Add to Cart?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Action: Checkout?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "action : clear_cart?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Action: Pay Order?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action: Add to Cart?": {
+      "main": [
+        [
+          {
+            "node": "If row exists1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If row does not exist1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Cart Logic": {
+      "main": [
+        [
+          {
+            "node": "Answer Query a callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action: Checkout?": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Checkout": {
+      "main": [
+        [
+          {
+            "node": "Cart Not Empty?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cart Not Empty?": {
+      "main": [
+        [
+          {
+            "node": "API: Create Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer Query a callback4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Create Order": {
+      "main": [
+        [
+          {
+            "node": "Clear Cart & Format",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Delete row(s)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Cart & Format": {
+      "main": [
+        [
+          {
+            "node": "Send Order Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Start Message": {
+      "main": [
+        [
+          {
+            "node": "Send Start Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Get Menu": {
+      "main": [
+        [
+          {
+            "node": "Format Menu with Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Menu with Buttons": {
+      "main": [
+        [
+          {
+            "node": "Send Menu with Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Cart": {
+      "main": [
+        [
+          {
+            "node": "Send Cart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Cron (30s)": {
+      "main": [
+        [
+          {
+            "node": "Queue: Get Pending Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Get Pending Orders": {
+      "main": [
+        [
+          {
+            "node": "Queue: Split Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Split Orders": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Queue: Wait 5s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Wait 5s": {
+      "main": [
+        [
+          {
+            "node": "Queue: Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Format Notification": {
+      "main": [
+        [
+          {
+            "node": "Queue: Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue: Send Notification": {
+      "main": [
+        [
+          {
+            "node": "Queue: Split Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "action : clear_cart?": {
+      "main": [
+        [
+          {
+            "node": "Delete row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Format Start Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API: Get Menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API: Get Menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API: Get Orders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API: Get Wallet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API: Get Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Parse Callback Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cart": {
+      "main": [
+        [
+          {
+            "node": "If callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If callback?": {
+      "main": [
+        [
+          {
+            "node": "Answer Query a callback1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Answer Query a callback3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If row does not exist": {
+      "main": [
+        [
+          {
+            "node": "API: Login",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If row exists": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge Auth Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If row exists1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row(s)": {
+      "main": [
+        [
+          {
+            "node": "Add to Cart Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If row does not exist1": {
+      "main": [
+        [
+          {
+            "node": "Insert row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert row1": {
+      "main": [
+        [
+          {
+            "node": "Add to Cart Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)1": {
+      "main": [
+        [
+          {
+            "node": "Update row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete row(s)": {
+      "main": [
+        [
+          {
+            "node": "Answer Query a callback2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)2": {
+      "main": [
+        [
+          {
+            "node": "Format Cart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)3": {
+      "main": [
+        [
+          {
+            "node": "Prepare Checkout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Get Orders": {
+      "main": [
+        [
+          {
+            "node": "Format Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Orders": {
+      "main": [
+        [
+          {
+            "node": "Send Orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Get Transactions": {
+      "main": [
+        [
+          {
+            "node": "Format Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Transactions": {
+      "main": [
+        [
+          {
+            "node": "Send Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Get Wallet": {
+      "main": [
+        [
+          {
+            "node": "Format Wallet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Wallet": {
+      "main": [
+        [
+          {
+            "node": "Send Wallet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action: Pay Order?": {
+      "main": [
+        [
+          {
+            "node": "API: Pay Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Pay Order": {
+      "main": [
+        [
+          {
+            "node": "Format Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Payment": {
+      "main": [
+        [
+          {
+            "node": "Send Payment Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Payment Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Answer Payment Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If row does not exist2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If row does not exist2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer Query a callback1": {
+      "main": [
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send Cart1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a55e209b-3197-4c9d-aa59-9ae4cbfa7e08",
+  "meta": {
+    "instanceId": "390d60c73dd52057adeb95f6b6a4cba707541956fc6adb26719338c66d410259"
+  },
+  "id": "5fPOesOWQ9fMB9QS",
+  "tags": []
+}
